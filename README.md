@@ -4,27 +4,34 @@ A WebSocket server system where clients connect to their nearest regional server
 
 ## High-Level Design
 
-```
-                        ┌──────────────────────────────────────┐
-Client (alice)          │  Region A — us-east (port 3001)      │
-    │                   │                                      │
-    └──── WebSocket ───▶│  connections: { alice → channel }    │
-                        │  presence:   { alice → us-east,      │
-                        │               bob   → eu-west }      │
-                        │                    │                 │
-                        └────────────────────│─────────────────┘
-                                             │ NATS pub/sub
-                        ┌────────────────────│─────────────────┐
-                        │  Region B — eu-west (port 3002)      │
-                        │                    │                 │
-                        │  connections: { bob → channel }      │
-                        │  presence:   { alice → us-east,      │
-                        │               bob   → eu-west }      │
-    ┌──── WebSocket ───▶│                                      │
-    │                   └──────────────────────────────────────┘
-Client (bob)
+```mermaid
+flowchart TB
+    subgraph Clients["Clients"]
+        Alice["Client: Alice"]
+        Bob["Client: Bob"]
+    end
 
-Global Router (port 8080): GET /route?region=us-east → ws://localhost:3001/ws
+    subgraph RouterService["Global Traffic Router (:8080)"]
+        Router["Matchmaker API: /route?region=..."]
+    end
+
+    subgraph Regions["Regional WebSocket Servers"]
+        RA["Region A: us-east (:3001)<br/>• connections: { alice }<br/>• presence: { alice -> us-east, bob -> eu-west }"]
+        RB["Region B: eu-west (:3002)<br/>• connections: { bob }<br/>• presence: { alice -> us-east, bob -> eu-west }"]
+    end
+
+    subgraph MessagingBackbone["Inter-Region Backbone"]
+        NATS["NATS Pub/Sub Server (:4222)"]
+    end
+
+    Alice -. "1. Route lookup" .-> Router
+    Bob -. "1. Route lookup" .-> Router
+
+    Alice ==>|"2. WebSocket (ws://localhost:3001/ws)"| RA
+    Bob ==>|"2. WebSocket (ws://localhost:3002/ws)"| RB
+
+    RA <==>|"3. Broadcast presence & targeted messages"| NATS
+    RB <==>|"3. Broadcast presence & targeted messages"| NATS
 ```
 
 ### Message Flow
@@ -53,13 +60,21 @@ NATS is the inter-region messaging backbone. Two subjects are defined, each with
 
 Every regional server subscribes to `presence` at startup. When a client connects or disconnects from any region, that region publishes a presence event to this subject. NATS fans it out to every subscriber — meaning every region always has a complete picture of who is connected where across the entire network.
 
-```
-Bob connects to eu-west
-    │
-    └── publish("presence", { user_id: "bob", region: "eu-west", kind: "connected" })
-            │
-            ├──▶ us-east receives it  →  presence.insert("bob", "eu-west")
-            └──▶ eu-west receives it  →  presence.insert("bob", "eu-west")
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Bob as Bob (Client)
+    participant EU as Region B (eu-west)
+    participant NATS as NATS (presence subject)
+    participant US as Region A (us-east)
+
+    Bob->>EU: WebSocket Connect (user_id=bob)
+    EU->>EU: Store connection in local DashMap
+    EU->>NATS: Publish presence event (bob, eu-west, connected)
+    NATS-->>US: Fan-out presence event
+    NATS-->>EU: Fan-out presence event
+    US->>US: presence.insert("bob", "eu-west")
+    EU->>EU: presence.insert("bob", "eu-west")
 ```
 
 Wire type:
@@ -74,13 +89,22 @@ The presence data lives in each server's in-memory `DashMap`. NATS only delivers
 
 Each regional server subscribes only to its own subject (`messages.us-east`, `messages.eu-west`, etc.). When a server needs to forward a message to a client in another region, it publishes to that region's specific subject. Only the target region receives it.
 
-```
-Alice (us-east) sends to Bob (eu-west)
-    │
-    └── publish("messages.eu-west", { from: "alice", to: "bob", content: "hello" })
-            │
-            ├── us-east does NOT receive this (not subscribed to messages.eu-west)
-            └── eu-west receives it → connections.get("bob") → deliver to Bob's WS channel
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Alice as Alice (us-east)
+    participant US as Region A (us-east)
+    participant NATS as NATS (messages.eu-west)
+    participant EU as Region B (eu-west)
+    actor Bob as Bob (eu-west)
+
+    Alice->>US: WS Message { to: "bob", content: "hello" }
+    US->>US: Lookup presence map: bob is in eu-west
+    US->>NATS: Publish to subject 'messages.eu-west'
+    Note over US,NATS: Only Region B is subscribed to 'messages.eu-west'
+    NATS->>EU: Deliver envelope { from: "alice", to: "bob", content: "hello" }
+    EU->>EU: Lookup local WS connection for bob
+    EU->>Bob: Forward message via local WebSocket channel
 ```
 
 Wire type:
