@@ -5,14 +5,13 @@ WORKDIR /app
 # async-nats links against OpenSSL on Linux
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Copy manifests and pre-build dependencies so Docker can cache this layer.
-# The real source is copied after, so dependency layers only rebuild when Cargo files change.
+# Copy manifests, vendored dependencies, and cargo config.
+# The vendor/ directory makes this build fully offline — no crates.io access needed.
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release
-RUN rm -f target/release/deps/videosdk_assignment*
-
+COPY vendor ./vendor
+COPY .cargo ./.cargo
 COPY src ./src
+
 RUN cargo build --release
 
 FROM debian:bookworm-slim AS runtime

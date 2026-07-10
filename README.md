@@ -126,6 +126,16 @@ No configuration changes are needed in existing regions.
 docker pull nats:2.14.3-alpine
 ```
 
+### Vendor dependencies (required before first Docker build)
+
+Docker builds run without internet access. All dependencies must be downloaded locally first:
+
+```bash
+cargo vendor
+```
+
+This downloads every dependency into a `vendor/` folder (not committed to git). The `.cargo/config.toml` file already tells cargo to use it. You only need to run this once, or again after changing `Cargo.toml`.
+
 ---
 
 ## Starting the System
