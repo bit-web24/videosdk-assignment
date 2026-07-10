@@ -126,7 +126,10 @@ async fn main() {
                         }
                         "message" => {
                             let sender = frame.from.unwrap_or_else(|| "unknown".into());
-                            let region = frame.from_region.unwrap_or_else(|| "unknown".into());
+                            let region = frame
+                                .from_region
+                                .or(frame.region)
+                                .unwrap_or_else(|| "unknown".into());
                             let content = frame.content.unwrap_or_default();
                             println!("[{} @ {}]: {}", sender, region, content);
                         }
