@@ -14,6 +14,7 @@ use crate::state::AppState;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegionMessage {
     pub from: String,
+    pub from_region: String,
     pub to: String,
     pub content: String,
 }
@@ -87,6 +88,11 @@ pub async fn subscribe_messages(state: AppState) {
             }
         };
 
+        info!(
+            "Received cross-region message from client '{}' (region '{}') for local client '{}'",
+            envelope.from, envelope.from_region, envelope.to
+        );
+
         match state.connections.get(&envelope.to) {
             Some(sender) => {
                 let payload = serde_json::json!({
@@ -99,13 +105,13 @@ pub async fn subscribe_messages(state: AppState) {
                     .is_err()
                 {
                     warn!(
-                        "Could not deliver message to {} — channel already closed",
+                        "Could not deliver message to '{}' — channel already closed",
                         envelope.to
                     );
                 } else {
                     info!(
-                        "Delivered cross-region message from {} to {}",
-                        envelope.from, envelope.to
+                        "Delivered cross-region message from client '{}' (region '{}') to local client '{}' (region '{}')",
+                        envelope.from, envelope.from_region, envelope.to, state.region_id
                     );
                 }
             }

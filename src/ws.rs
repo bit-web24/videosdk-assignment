@@ -143,6 +143,11 @@ async fn handle_incoming(state: &AppState, from_user: &str, raw: &str) {
         }
     };
 
+    info!(
+        "Received message from client '{}' in region '{}' addressed to client '{}'",
+        from_user, state.region_id, msg.to
+    );
+
     // Local delivery — fastest path, no network hop.
     if let Some(sender) = state.connections.get(&msg.to) {
         let payload = serde_json::json!({
@@ -155,7 +160,7 @@ async fn handle_incoming(state: &AppState, from_user: &str, raw: &str) {
             .is_ok()
         {
             info!(
-                "Delivered locally: {} -> {} in region {}",
+                "Delivered message locally: client '{}' -> client '{}' (region '{}')",
                 from_user, msg.to, state.region_id
             );
         }
@@ -166,19 +171,20 @@ async fn handle_incoming(state: &AppState, from_user: &str, raw: &str) {
     if let Some(target_region) = state.presence.get(&msg.to) {
         let envelope = RegionMessage {
             from: from_user.to_string(),
+            from_region: state.region_id.clone(),
             to: msg.to.clone(),
             content: msg.content,
         };
-        publish_to_region(&state.nats, &target_region, envelope).await;
         info!(
-            "Forwarded via NATS: {} -> {} (region {})",
-            from_user, msg.to, *target_region
+            "Routing cross-region message: client '{}' (region '{}') -> client '{}' (region '{}') via NATS",
+            from_user, state.region_id, msg.to, *target_region
         );
+        publish_to_region(&state.nats, &target_region, envelope).await;
         return;
     }
 
     warn!(
-        "Could not route message from {} to {}: user not found in any region",
+        "Could not route message from '{}' to '{}': target user not found in any region",
         from_user, msg.to
     );
 }
