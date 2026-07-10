@@ -123,6 +123,8 @@ async fn main() {
                             println!("   Your Region  : {}", frame.region.unwrap_or_default());
                             println!("==============================================");
                             println!("Type your message below and press Enter to send:\n");
+                            print!("> ");
+                            let _ = std::io::stdout().flush();
                         }
                         "message" => {
                             let sender = frame.from.unwrap_or_else(|| "unknown".into());
@@ -131,13 +133,21 @@ async fn main() {
                                 .or(frame.region)
                                 .unwrap_or_else(|| "unknown".into());
                             let content = frame.content.unwrap_or_default();
-                            println!("[{} @ {}]: {}", sender, region, content);
+                            println!("\r[{} @ {}]: {}", sender, region, content);
+                            print!("> ");
+                            let _ = std::io::stdout().flush();
                         }
                         other => {
-                            println!("[server event]: {}: {}", other, text);
+                            println!("\r[server event]: {}: {}", other, text);
+                            print!("> ");
+                            let _ = std::io::stdout().flush();
                         }
                     },
-                    Err(_) => println!("[raw]: {}", text),
+                    Err(_) => {
+                        println!("\r[raw]: {}", text);
+                        print!("> ");
+                        let _ = std::io::stdout().flush();
+                    }
                 }
             }
         }
@@ -148,9 +158,14 @@ async fn main() {
     let mut lines = stdin.lines();
     let to = args.to.clone();
 
+    print!("> ");
+    let _ = std::io::stdout().flush();
+
     while let Ok(Some(line)) = lines.next_line().await {
         let content = line.trim().to_string();
         if content.is_empty() {
+            print!("> ");
+            let _ = std::io::stdout().flush();
             continue;
         }
 
@@ -166,6 +181,7 @@ async fn main() {
         }
 
         println!("[you -> {}]: {}", to, content);
+        print!("> ");
         let _ = std::io::stdout().flush();
     }
 
