@@ -243,6 +243,7 @@ cargo run --bin client -- --user-id=alice --region=us-east --to=bob
 
 # Terminal 2
 cargo run --bin client -- --user-id=bob --region=us-east --to=alice
+```
 ---
 
 ## Stopping the System
