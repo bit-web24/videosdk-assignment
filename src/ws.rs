@@ -153,6 +153,7 @@ async fn handle_incoming(state: &AppState, from_user: &str, raw: &str) {
         let payload = serde_json::json!({
             "type": "message",
             "from": from_user,
+            "from_region": state.region_id,
             "content": msg.content,
         });
         if sender

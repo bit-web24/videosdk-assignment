@@ -98,6 +98,7 @@ pub async fn subscribe_messages(state: AppState) {
                 let payload = serde_json::json!({
                     "type": "message",
                     "from": envelope.from,
+                    "from_region": envelope.from_region,
                     "content": envelope.content,
                 });
                 if sender
