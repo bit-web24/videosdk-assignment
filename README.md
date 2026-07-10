@@ -38,6 +38,69 @@ Global Router (port 8080): GET /route?region=us-east → ws://localhost:3001/ws
 
 ---
 
+## NATS Architecture
+
+NATS is the inter-region messaging backbone. Two subjects are defined, each with a different delivery pattern.
+
+### Subjects
+
+| Subject | Pattern | Publishers | Subscribers |
+|---|---|---|---|
+| `presence` | **Broadcast** — all regions receive every event | Every regional WS server | Every regional WS server |
+| `messages.<region_id>` | **Targeted** — only one region receives it | Any regional WS server | Only the named region |
+
+### `presence` — Broadcast Subject
+
+Every regional server subscribes to `presence` at startup. When a client connects or disconnects from any region, that region publishes a presence event to this subject. NATS fans it out to every subscriber — meaning every region always has a complete picture of who is connected where across the entire network.
+
+```
+Bob connects to eu-west
+    │
+    └── publish("presence", { user_id: "bob", region: "eu-west", kind: "connected" })
+            │
+            ├──▶ us-east receives it  →  presence.insert("bob", "eu-west")
+            └──▶ eu-west receives it  →  presence.insert("bob", "eu-west")
+```
+
+Wire type:
+```json
+{ "user_id": "bob", "region_id": "eu-west", "kind": "connected" }
+{ "user_id": "bob", "region_id": "eu-west", "kind": "disconnected" }
+```
+
+The presence data lives in each server's in-memory `DashMap`. NATS only delivers the event and forgets it — nothing is stored in NATS.
+
+### `messages.<region_id>` — Targeted Subject
+
+Each regional server subscribes only to its own subject (`messages.us-east`, `messages.eu-west`, etc.). When a server needs to forward a message to a client in another region, it publishes to that region's specific subject. Only the target region receives it.
+
+```
+Alice (us-east) sends to Bob (eu-west)
+    │
+    └── publish("messages.eu-west", { from: "alice", to: "bob", content: "hello" })
+            │
+            ├── us-east does NOT receive this (not subscribed to messages.eu-west)
+            └── eu-west receives it → connections.get("bob") → deliver to Bob's WS channel
+```
+
+Wire type:
+```json
+{ "from": "alice", "to": "bob", "content": "hello" }
+```
+
+### Delivery model
+
+Messages are delivered **fire-and-forget** — the publishing server does not wait for acknowledgement. If the recipient disconnects between the NATS publish and delivery, the message is dropped and a warning is logged.
+
+### Adding a new region
+
+A new region only needs to:
+1. Subscribe to `presence` — immediately starts receiving connect/disconnect events from all existing regions.
+2. Subscribe to `messages.<its-own-region-id>` — starts receiving messages targeted at it.
+3. Publish its own presence events — all other regions update their maps automatically.
+
+No configuration changes are needed in existing regions.
+
 ## Components
 
 | Service | Port | Description |
