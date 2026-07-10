@@ -35,13 +35,6 @@ Global Router (port 8080): GET /route?region=us-east → ws://localhost:3001/ws
 4. us-east publishes the message to NATS subject `messages.eu-west`.
 5. eu-west's background subscriber receives it and delivers it to Bob's WebSocket channel.
 
-### Presence Tracking — Design Decision
-
-The assignment specifies a fire-and-forget messaging approach with no mention of tracking where each client is connected. To make cross-region routing possible, each server maintains a `presence` map (`user_id → region_id`) that covers **all clients across the entire network**, not just local ones.
-
-This map is kept in sync via a NATS subject `presence`. Whenever any client connects or disconnects from any region, that server broadcasts a presence event. Every other region receives it and updates its own local copy of the map. No presence data is stored in NATS — NATS is only the delivery pipe. Each server holds its own in-memory copy.
-
-The fire-and-forget model means messages are published to NATS with no acknowledgement or delivery guarantee. If the recipient disconnects between the NATS publish and delivery, the message is dropped with a warning log.
 
 ---
 
