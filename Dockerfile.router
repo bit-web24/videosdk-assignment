@@ -1,0 +1,29 @@
+FROM rust:1.87-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock* ./
+
+# Cache dependencies with a dummy build before copying real source
+RUN mkdir -p src/bin \
+    && echo "fn main() {}" > src/main.rs \
+    && echo "fn main() {}" > src/bin/router.rs \
+    && cargo build --release --bin router \
+    && rm -f target/release/deps/router* src/main.rs src/bin/router.rs
+
+COPY src ./src
+RUN cargo build --release --bin router
+
+FROM debian:bookworm-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/router ./router
+
+EXPOSE 8080
+
+CMD ["./router"]
