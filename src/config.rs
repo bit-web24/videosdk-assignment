@@ -29,16 +29,15 @@ impl Config {
         // Load .env if present. Ignored in production where real env vars are set.
         dotenvy::dotenv().ok();
 
-        let region_id = std::env::var("REGION_ID")
-            .map_err(|_| ConfigError::MissingVar("REGION_ID".into()))?;
+        let region_id =
+            std::env::var("REGION_ID").map_err(|_| ConfigError::MissingVar("REGION_ID".into()))?;
 
         let port_str = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
         let port = port_str
             .parse::<u16>()
             .map_err(|_| ConfigError::InvalidPort(port_str))?;
 
-        let nats_url =
-            std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".into());
+        let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".into());
 
         Ok(Config {
             region_id,
