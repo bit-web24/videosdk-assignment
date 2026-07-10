@@ -243,42 +243,6 @@ cargo run --bin client -- --user-id=alice --region=us-east --to=bob
 
 # Terminal 2
 cargo run --bin client -- --user-id=bob --region=us-east --to=alice
-```
-
----
-
-## Project Structure
-
-```
-src/
-├── main.rs          Entry point for the regional WebSocket server
-├── config.rs        Reads REGION_ID, PORT, NATS_URL from environment
-├── state.rs         Shared AppState: connections map, presence map, NATS client
-├── nats.rs          NATS wire types, publishers, and background subscriber tasks
-├── ws.rs            WebSocket upgrade handler, message routing logic
-└── bin/
-    ├── router.rs    Global traffic router HTTP service
-    └── client.rs    CLI client binary
-```
-
----
-
-## Tech Stack
-
-| Crate | Purpose |
-|---|---|
-| `axum` | WebSocket server and HTTP routing |
-| `tokio` | Async runtime |
-| `async-nats` | NATS client for inter-region messaging |
-| `dashmap` | Thread-safe in-memory maps for connections and presence |
-| `serde` / `serde_json` | Message serialization |
-| `uuid` | Auto-generate user IDs when none is provided |
-| `tokio-tungstenite` | WebSocket client for the CLI binary |
-| `reqwest` | HTTP client used by the CLI to query the router |
-| `tracing` | Structured async logging |
-| `dotenvy` | Load configuration from `.env` in local development |
-| `thiserror` | Ergonomic error types |
-
 ---
 
 ## Stopping the System
