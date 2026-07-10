@@ -1,0 +1,63 @@
+services:
+
+  # NATS Messaging Server
+  nats:
+    image: nats:2.10-alpine
+    container_name: nats-server
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring dashboard
+    command: ["--http_port", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - videosdk-net
+
+  # Region A: US East
+  region-a:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ws-region-a
+    ports:
+      - "3001:3000"   # Host:Container — Region A exposed on 3001
+    environment:
+      - REGION_ID=us-east
+      - PORT=3000
+      - NATS_URL=nats://nats:4222
+      - RUST_LOG=info
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - videosdk-net
+
+  # Region B: EU West
+  region-b:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ws-region-b
+    ports:
+      - "3002:3000"   # Host:Container — Region B exposed on 3002
+    environment:
+      - REGION_ID=eu-west
+      - PORT=3000
+      - NATS_URL=nats://nats:4222
+      - RUST_LOG=info
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - videosdk-net
+
+# Shared Network
+networks:
+  videosdk-net:
+    driver: bridge

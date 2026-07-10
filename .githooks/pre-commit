@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Only run Rust checks if there are staged .rs files or src/ exists
+if ! find . -name "*.rs" -not -path "./target/*" | grep -q .; then
+    echo "No Rust files found, skipping fmt and clippy."
+    exit 0
+fi
+
+echo "Running pre-commit checks..."
+
+# Check formatting - fails if any file would be reformatted
+if ! cargo fmt --all -- --check; then
+    echo ""
+    echo "Formatting issues found. Run 'cargo fmt' to fix them, then re-stage."
+    exit 1
+fi
+
+# Lint - treat warnings as errors
+if ! cargo clippy --all-targets -- -D warnings; then
+    echo ""
+    echo "Clippy found issues. Fix them before committing."
+    exit 1
+fi
+
+echo "All checks passed."
