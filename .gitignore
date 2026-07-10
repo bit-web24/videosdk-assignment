@@ -1,2 +1,5 @@
 /target
+.env
 .session
+# MaxMind GeoLite2 database — download your own copy from maxmind.com/en/geolite2/signup
+geoip/*.mmdb
