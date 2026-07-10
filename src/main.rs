@@ -3,5 +3,6 @@
 mod config;
 mod nats;
 mod state;
+mod ws;
 
 fn main() {}
