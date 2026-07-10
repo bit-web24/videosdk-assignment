@@ -229,9 +229,17 @@ Once both are connected, type a message in either terminal and press Enter. It w
 | Flag | Required | Default | Description |
 |---|---|---|---|
 | `--user-id` | Yes | — | Your user identity on the network |
-| `--region` | Yes | — | Region to connect to (`us-east` or `eu-west`) |
 | `--to` | Yes | — | User ID of the person you want to message |
+| `--region` | No | Auto (Lowest Latency) | Explicit override (`us-east` or `eu-west`). If omitted, client probes all regions and picks the lowest RTT |
 | `--router` | No | `http://localhost:8080` | URL of the global traffic router |
+
+### Automatic Latency-Based Smart Routing
+
+If you omit `--region`, the client queries the Global Traffic Router (`GET /regions`) for candidate servers, runs a real-time HTTP ping probe against each region, and automatically connects to the server with the lowest round-trip latency:
+
+```bash
+cargo run --bin client -- --user-id=alice --to=bob
+```
 
 ### Same-region test
 

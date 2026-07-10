@@ -54,6 +54,7 @@ async fn main() {
     let app = Router::new()
         .route("/ws", get(ws::ws_handler))
         .route("/health", get(health_handler))
+        .route("/ping", get(ping_handler))
         .with_state(state);
 
     // Bind socket and serve requests
@@ -80,4 +81,9 @@ async fn main() {
 /// Simple health check endpoint used by Docker / load balancer probes.
 async fn health_handler() -> &'static str {
     "OK"
+}
+
+/// Lightweight ping endpoint used by clients to measure regional RTT latency.
+async fn ping_handler() -> &'static str {
+    "pong"
 }

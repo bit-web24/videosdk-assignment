@@ -31,9 +31,16 @@ struct ServerFrame {
     region: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+struct RegionCandidate {
+    region: String,
+    ping_url: String,
+    ws_url: String,
+}
+
 struct Args {
     user_id: String,
-    region: String,
+    region: Option<String>,
     to: String,
     router: String,
 }
@@ -60,7 +67,7 @@ fn parse_args() -> Result<Args, String> {
 
     Ok(Args {
         user_id: user_id.ok_or("--user-id is required")?,
-        region: region.ok_or("--region is required")?,
+        region,
         to: to.ok_or("--to is required. Example: --to=bob")?,
         router,
     })
@@ -73,37 +80,124 @@ async fn main() {
         Err(e) => {
             eprintln!("Error: {}", e);
             eprintln!(
-                "Usage: client --user-id=<id> --region=<region> --to=<recipient> [--router=<url>]"
+                "Usage: client --user-id=<id> --to=<recipient> [--region=<region>] [--router=<url>]"
             );
             std::process::exit(1);
         }
     };
 
-    println!(
-        "Querying Global Traffic Router at {} for region '{}'...",
-        args.router, args.region
-    );
-    let route_url = format!("{}/route?region={}", args.router, args.region);
+    let http_client = reqwest::Client::new();
 
-    let route_resp = reqwest::get(&route_url)
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("Could not reach the router at {}: {}", args.router, e);
+    let (assigned_region, assigned_ws_url) = if let Some(ref explicit_region) = args.region {
+        println!(
+            "Querying Global Traffic Router at {} for explicit region '{}'...",
+            args.router, explicit_region
+        );
+        let route_url = format!("{}/route?region={}", args.router, explicit_region);
+
+        let route_resp = http_client
+            .get(&route_url)
+            .send()
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Could not reach the router at {}: {}", args.router, e);
+                std::process::exit(1);
+            })
+            .json::<RouteResponse>()
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Router returned an unexpected response: {}", e);
+                std::process::exit(1);
+            });
+
+        (route_resp.region, route_resp.ws_url)
+    } else {
+        println!(
+            "No explicit --region specified. Fetching candidate regions from Global Router at {}...",
+            args.router
+        );
+        let regions_url = format!("{}/regions", args.router);
+        let candidates = http_client
+            .get(&regions_url)
+            .send()
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Could not fetch candidate regions from router: {}", e);
+                std::process::exit(1);
+            })
+            .json::<Vec<RegionCandidate>>()
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("Router returned unexpected candidate list: {}", e);
+                std::process::exit(1);
+            });
+
+        if candidates.is_empty() {
+            eprintln!("Router returned 0 candidate regions!");
             std::process::exit(1);
-        })
-        .json::<RouteResponse>()
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("Router returned an unexpected response: {}", e);
+        }
+
+        println!("\nProbing regional latency via RTT ping...");
+        println!("------------------------------------------------------");
+
+        let mut best_candidate: Option<(&RegionCandidate, std::time::Duration)> = None;
+
+        for candidate in &candidates {
+            let start = std::time::Instant::now();
+            match http_client.get(&candidate.ping_url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    let rtt = start.elapsed();
+                    println!(
+                        "  • Region '{:<10}' ping {:<28} -> {:.2?} ms",
+                        candidate.region,
+                        candidate.ping_url,
+                        rtt.as_secs_f64() * 1000.0
+                    );
+                    if best_candidate
+                        .as_ref()
+                        .is_none_or(|(_, best_rtt)| rtt < *best_rtt)
+                    {
+                        best_candidate = Some((candidate, rtt));
+                    }
+                }
+                Ok(resp) => {
+                    println!(
+                        "  • Region '{:<10}' ping {:<28} -> HTTP {}",
+                        candidate.region,
+                        candidate.ping_url,
+                        resp.status()
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "  • Region '{:<10}' ping {:<28} -> Unreachable ({})",
+                        candidate.region, candidate.ping_url, e
+                    );
+                }
+            }
+        }
+        println!("------------------------------------------------------");
+
+        let (chosen, lowest_rtt) = best_candidate.unwrap_or_else(|| {
+            eprintln!("All candidate regions failed latency probes!");
             std::process::exit(1);
         });
 
+        println!(
+            "Selected lowest latency region: '{}' ({:.2?} ms)\n",
+            chosen.region,
+            lowest_rtt.as_secs_f64() * 1000.0
+        );
+
+        (chosen.region.clone(), chosen.ws_url.clone())
+    };
+
     println!(
         "Assigned Regional Server: {} ({})",
-        route_resp.ws_url, route_resp.region
+        assigned_ws_url, assigned_region
     );
 
-    let ws_url = format!("{}?user_id={}", route_resp.ws_url, args.user_id);
+    let ws_url = format!("{}?user_id={}", assigned_ws_url, args.user_id);
     let (ws_stream, _) = connect_async(&ws_url).await.unwrap_or_else(|e| {
         eprintln!("WebSocket connection failed: {}", e);
         std::process::exit(1);

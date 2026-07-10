@@ -30,6 +30,13 @@ struct RouteResponse {
 }
 
 #[derive(Serialize)]
+struct RegionCandidate {
+    region: String,
+    ping_url: String,
+    ws_url: String,
+}
+
+#[derive(Serialize)]
 struct ErrorResponse {
     error: String,
     available_regions: Vec<String>,
@@ -79,6 +86,35 @@ async fn route_handler(
     }
 }
 
+/// Converts a WebSocket URL like ws://localhost:3001/ws to an HTTP ping endpoint http://localhost:3001/ping.
+fn derive_ping_url(ws_url: &str) -> String {
+    let http_prefix = if ws_url.starts_with("wss://") {
+        ws_url.replacen("wss://", "https://", 1)
+    } else {
+        ws_url.replacen("ws://", "http://", 1)
+    };
+    if let Some(base) = http_prefix.strip_suffix("/ws") {
+        format!("{}/ping", base)
+    } else {
+        format!("{}/ping", http_prefix)
+    }
+}
+
+/// Returns all available regional servers and their ping/WebSocket URLs for client latency probing.
+async fn regions_handler(State(state): State<RouterState>) -> Json<Vec<RegionCandidate>> {
+    let mut candidates = Vec::new();
+    for (region, ws_url) in &state.region_map {
+        candidates.push(RegionCandidate {
+            region: region.clone(),
+            ping_url: derive_ping_url(ws_url),
+            ws_url: ws_url.clone(),
+        });
+    }
+    // Sort alphabetically by region name for deterministic output
+    candidates.sort_by(|a, b| a.region.cmp(&b.region));
+    Json(candidates)
+}
+
 async fn health_handler() -> &'static str {
     "OK"
 }
@@ -121,6 +157,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/route", get(route_handler))
+        .route("/regions", get(regions_handler))
         .route("/health", get(health_handler))
         .with_state(state);
 
