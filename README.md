@@ -81,12 +81,29 @@ sequenceDiagram
 
 Wire type:
 ```json
-{ "from": "alice", "to": "bob", "content": "hello" }
+{ "from": "alice", "from_region": "us-east", "to": "bob", "content": "hello" }
 ```
 
 ### Delivery model
 
 Messages are delivered **fire-and-forget** — the publishing server does not wait for acknowledgement. If the recipient disconnects between the NATS publish and delivery, the message is dropped and a warning is logged.
+
+### Offline recipient warning
+
+If the sender's regional server cannot find the target user in any region's presence map (meaning they are offline), the server sends a `warning` frame back to the sender's WebSocket connection instead of silently dropping the message:
+
+```json
+{ "type": "warning", "content": "User 'bob' is currently offline or not present in any region. Message dropped." }
+```
+
+The CLI client displays this prominently:
+
+```
+> hello bob
+[you -> bob]: hello bob
+> [!] WARNING: User 'bob' is currently offline or not present in any region. Message dropped.
+> 
+```
 
 ### Adding a new region
 
@@ -172,7 +189,7 @@ http://localhost:8222
 
 ## Running the Clients
 
-The CLI client asks the router which WebSocket server handles the requested region, connects to it, and lets you exchange messages in real time.
+The CLI client connects to the nearest regional WebSocket server — either by latency probing all candidates automatically (default), or by connecting to an explicit region if `--region` is specified. Once connected, you can exchange real-time messages with any other connected client.
 
 Build the client binary:
 
