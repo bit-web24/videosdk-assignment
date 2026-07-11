@@ -188,4 +188,12 @@ async fn handle_incoming(state: &AppState, from_user: &str, raw: &str) {
         "Could not route message from '{}' to '{}': target user not found in any region",
         from_user, msg.to
     );
+
+    if let Some(sender) = state.connections.get(from_user) {
+        let warning_payload = serde_json::json!({
+            "type": "warning",
+            "content": format!("User '{}' is currently offline or not present in any region. Message dropped.", msg.to),
+        });
+        let _ = sender.send(Message::Text(warning_payload.to_string().into()));
+    }
 }

@@ -231,6 +231,12 @@ async fn main() {
                             print!("> ");
                             let _ = std::io::stdout().flush();
                         }
+                        "warning" | "error" => {
+                            let content = frame.content.unwrap_or_default();
+                            println!("\r[!] WARNING: {}", content);
+                            print!("> ");
+                            let _ = std::io::stdout().flush();
+                        }
                         other => {
                             println!("\r[server event]: {}: {}", other, text);
                             print!("> ");
