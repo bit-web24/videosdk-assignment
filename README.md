@@ -3,36 +3,8 @@
 A WebSocket server system where clients connect to their nearest regional server and communicate seamlessly with clients connected to other regions — built in Rust.
 
 ## High-Level Design
+<img width="4095" height="2116" alt="HLD" src="https://github.com/user-attachments/assets/2b654c3c-7940-47c7-b051-5a1e9f40aed0" />
 
-```mermaid
-flowchart TB
-    subgraph Clients["Clients"]
-        Alice["Client: Alice"]
-        Bob["Client: Bob"]
-    end
-
-    subgraph RouterService["Global Traffic Router (:8080)"]
-        Router["Matchmaker API: /route?region=..."]
-    end
-
-    subgraph Regions["Regional WebSocket Servers"]
-        RA["Region A: us-east (:3001)<br/>• connections: { alice }<br/>• presence: { alice -> us-east, bob -> eu-west }"]
-        RB["Region B: eu-west (:3002)<br/>• connections: { bob }<br/>• presence: { alice -> us-east, bob -> eu-west }"]
-    end
-
-    subgraph MessagingBackbone["Inter-Region Backbone"]
-        NATS["NATS Pub/Sub Server (:4222)"]
-    end
-
-    Alice -. "1. Route lookup" .-> Router
-    Bob -. "1. Route lookup" .-> Router
-
-    Alice ==>|"2. WebSocket (ws://localhost:3001/ws)"| RA
-    Bob ==>|"2. WebSocket (ws://localhost:3002/ws)"| RB
-
-    RA <==>|"3. Broadcast presence & targeted messages"| NATS
-    RB <==>|"3. Broadcast presence & targeted messages"| NATS
-```
 
 ### Message Flow
 
