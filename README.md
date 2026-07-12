@@ -1,6 +1,6 @@
 # Regionally Distributed WebSocket Communication System
 
-A WebSocket server system where clients connect to their nearest regional server and communicate seamlessly with clients connected to other regions — built in Rust.
+A horizontally scalable, multi-region WebSocket communication system built in Rust. Clients automatically discover and connect to their lowest-latency regional edge server via real-time RTT probing, while a decoupled NATS pub/sub backbone synchronizes global presence and routes cross-region messages seamlessly across edge nodes.
 
 ## High-Level Design
 <img width="4095" height="2116" alt="HLD" src="https://github.com/user-attachments/assets/2b654c3c-7940-47c7-b051-5a1e9f40aed0" />
