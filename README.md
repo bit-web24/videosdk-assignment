@@ -205,11 +205,17 @@ Open **two separate terminals**:
 cargo run --bin client -- --user-id=alice --region=us-east --to=bob
 ```
 
+<img width="1365" height="717" alt="Terminal-1" src="https://github.com/user-attachments/assets/07c570ba-98fa-4f1e-827e-47cc2dc5d0c3" />
+
+Note: This client is determining its websocket-server by comparing round-trip latency among all the ws-servers.
+
 **Terminal 2 — Bob connecting to eu-west:**
 
 ```bash
 cargo run --bin client -- --user-id=bob --region=eu-west --to=alice
 ```
+<img width="1413" height="505" alt="Terminal-2" src="https://github.com/user-attachments/assets/90fb47e4-5e96-4aa9-a97c-1c1aa040405b" />
+
 
 Once both are connected, type a message in either terminal and press Enter. It will appear in the other terminal.
 
