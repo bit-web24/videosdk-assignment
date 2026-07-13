@@ -1,7 +1,7 @@
-mod config;
-mod nats;
-mod state;
-mod ws;
+use videosdk_assignment::config;
+use videosdk_assignment::nats;
+use videosdk_assignment::state;
+use videosdk_assignment::ws;
 
 use axum::{routing::get, Router};
 use std::net::SocketAddr;
